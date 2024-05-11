@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
+import "@openzeppelin/contracts/access/Ownable.sol";
 pragma solidity ^0.8.20;
 
 interface IAdmin {
@@ -17,7 +18,7 @@ interface IPayment {
     function maxFreeVotes() external view returns (uint);
 }
 
-contract Voting {
+contract Voting is Ownable {
     IAdmin admin;
     IPayment payment;
 
@@ -29,7 +30,10 @@ contract Voting {
         uint[] candidatesId;
     }
 
-    constructor(address _admin, address _payment) {
+    constructor(address initialOwner, address _admin, address _payment) Ownable(initialOwner) {
+        if (initialOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
         admin = IAdmin(_admin);
         payment = IPayment(_payment);
     }
@@ -65,7 +69,8 @@ contract Voting {
         }
 
         admin.increaseCandidateVotes(_candidateId);
-        voters[msg.sender].votes++;
+        voters[msg.sender].votes += 1;
+        voters[msg.sender].candidatesId.push(_candidateId);
         emit VotedSuccessfully(msg.sender, _candidateId);
     }
 
@@ -75,9 +80,10 @@ contract Voting {
         return votesLeft;
 
     }
-    function findWinner() external onlyDuringVotingPeriod(){
+    function findWinner() external onlyOwner returns (string memory name, address candidateAddress, uint totalVotes) {
+        require(admin.votingEnd() < block.timestamp);
         (string memory winnerName, address winnerAddress, uint winnerVotes) = admin.findBestCandidate();
         emit WinnerDeclared(winnerName, winnerAddress, winnerVotes);
-        payment.releaseFunds(winnerAddress);
+        return(winnerName, winnerAddress, winnerVotes);
     }
 }

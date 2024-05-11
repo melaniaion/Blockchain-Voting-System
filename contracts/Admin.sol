@@ -57,13 +57,15 @@ contract Admin is Ownable {
     function deactivateCandidate(uint _candidateId) external onlyOwner validCandidateId(_candidateId) {
         Candidate memory candidate = idToCandidate[_candidateId];
         candidate.state = State.Ineligible;
+        candidateList[_candidateId - 1].state = State.Ineligible;
         emit CandidateDeactivated(_candidateId);
     }
 
     function increaseCandidateVotes(uint _id) external returns (uint){
         require(_id > 0 && _id < nextCandidateId, "Candidate ID out of range");
-        uint totalVotes = idToCandidate[_id].totalVotes++;
-        return totalVotes;
+        idToCandidate[_id].totalVotes += 1;
+        candidateList[_id - 1].totalVotes += 1;
+        return idToCandidate[_id].totalVotes;
     }
 
     function getCandidateDetails(uint _candidateId) public view returns (

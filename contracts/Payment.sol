@@ -13,30 +13,39 @@ contract Payment is Ownable {
     event FeeUpdated(uint _votingFee);
     event WinnerPaid(uint totalCollectedFees);
 
-    constructor(address initialOwner, uint _initialFee, uint _maxFreeVotes) Ownable(initialOwner) {
+    modifier validNumberVotesRange(uint _maxFreeVotes, uint _maxPaidVotes){
+        require(_maxFreeVotes < _maxPaidVotes, "Invalid range of free/paid votes");
+        _;
+    }
+
+    constructor(address initialOwner, uint _initialFee, uint _maxFreeVotes, uint _maxPaidVotes) Ownable(initialOwner) validNumberVotesRange(_maxFreeVotes, _maxPaidVotes) {
         if (initialOwner == address(0)) {
             revert OwnableInvalidOwner(address(0));
         }
         votingFee = _initialFee;   
         maxFreeVotes = _maxFreeVotes;
+        maxPaidVotes = _maxPaidVotes;
     }
 
     function payToVote(address voter) external payable {
         uint votes = votesPaid[voter];
         uint requiredFee = votes * votingFee;
         require(msg.value >= requiredFee, "Not enough ETH sent");
+        if (msg.value > requiredFee) {
+            payable(msg.sender).transfer(msg.value - requiredFee);
+        }
 
         votesPaid[voter]++;
         emit PaymentReceived(voter, msg.value);
     }
 
     // Allow the owner to update the fee 
-    function updateFees(uint _updatedFee) external onlyOwner() {
+    function updateFees(uint _updatedFee) external onlyOwner {
         votingFee = _updatedFee;
         emit FeeUpdated(votingFee);
     }
 
-    function updateMaxPaidVotes(uint _maxPaidVotes) external onlyOwner{
+    function updateMaxPaidVotes(uint _maxPaidVotes) external onlyOwner {
         maxPaidVotes = _maxPaidVotes;
         emit MaxPaidVotesUpdated(maxPaidVotes);
 
@@ -48,7 +57,7 @@ contract Payment is Ownable {
     }
 
     // Pay the winner
-    function releaseFunds(address winner) external {
+    function releaseFunds(address winner) external onlyOwner {
         uint totalCollectedFees = address(this).balance;  
         require(totalCollectedFees > 0, "No funds to distribute");
         payable(winner).transfer(totalCollectedFees);
