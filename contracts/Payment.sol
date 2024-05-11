@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
-import "../node_modules/@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 contract Payment is Ownable {
 
     mapping(address => uint) public votesPaid;  // Tracks the number of paid votes per voter
