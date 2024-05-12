@@ -9,7 +9,7 @@ contract Payment is Ownable {
     uint public maxFreeVotes;
 
     event MaxPaidVotesUpdated(uint _updatedNumber);
-    event PaymentReceived(address indexed payer, uint amount);
+    event PaymentReceived(address indexed payer);
     event FeeUpdated(uint _votingFee);
     event WinnerPaid(uint totalCollectedFees);
 
@@ -28,15 +28,14 @@ contract Payment is Ownable {
     }
 
     function payToVote(address voter) external payable {
-        uint votes = votesPaid[voter];
-        uint requiredFee = votes * votingFee;
-        require(msg.value >= requiredFee, "Not enough ETH sent");
-        if (msg.value > requiredFee) {
-            payable(msg.sender).transfer(msg.value - requiredFee);
+        require(msg.value >= votingFee, "Not enough ETH sent");
+        if (msg.value > votingFee) {
+            (bool sent, ) = payable(voter).call{value: msg.value - votingFee}("");
+            require(sent, "Failed to send the extra Ether back");
         }
 
-        votesPaid[voter]++;
-        emit PaymentReceived(voter, msg.value);
+        votesPaid[voter] += 1;
+        emit PaymentReceived(voter);
     }
 
     // Allow the owner to update the fee 

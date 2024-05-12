@@ -16,6 +16,7 @@ interface IPayment {
     function releaseFunds(address winner) external;
     function maxPaidVotes() external view returns (uint);
     function maxFreeVotes() external view returns (uint);
+    function votingFee() external view returns (uint);
 }
 
 contract Voting is Ownable {
@@ -61,29 +62,45 @@ contract Voting is Ownable {
         emit VoterRegistered(msg.sender);
     }
 
-    function vote(uint _candidateId) external onlyDuringVotingPeriod validVoter(msg.sender) {
-        Voter memory voter = voters[msg.sender];
+    function vote(uint _candidateId) external onlyDuringVotingPeriod validVoter(msg.sender) payable {
         require(admin.verifyCandidateEligibility(_candidateId), "Candidate not eligible");
-        if(voter.votes < payment.maxFreeVotes() && payment.getTotalPaidVotes(msg.sender) < payment.maxPaidVotes()){
-            payment.payToVote(msg.sender);
+        if (findPaidVotesLeft() == 0){
+            revert InvalidVote();
         }
 
-        admin.increaseCandidateVotes(_candidateId);
-        voters[msg.sender].votes += 1;
-        voters[msg.sender].candidatesId.push(_candidateId);
-        emit VotedSuccessfully(msg.sender, _candidateId);
+        if(voters[msg.sender].votes < payment.maxFreeVotes()){
+            addVotes(_candidateId, msg.sender);
+        }
+        else{
+            payment.payToVote{value: msg.value}(msg.sender);
+            addVotes(_candidateId, msg.sender);
+        }
     }
 
-    function findPaidVotesLeft(address voterAddress) external view validVoter(msg.sender) returns (uint rest){
-        uint totalPaidVotes = payment.getTotalPaidVotes(voterAddress);
+    function addVotes(uint _candidateId, address _voterAddress) private {
+        admin.increaseCandidateVotes(_candidateId);
+        voters[_voterAddress].votes += 1;
+        voters[_voterAddress].candidatesId.push(_candidateId);
+        emit VotedSuccessfully(_voterAddress, _candidateId);
+    }
+
+    function findPaidVotesLeft() public view validVoter(msg.sender) returns (uint rest){
+        uint totalPaidVotes = payment.getTotalPaidVotes(msg.sender);
         uint votesLeft = payment.maxPaidVotes() - totalPaidVotes;
         return votesLeft;
-
     }
+
     function findWinner() external onlyOwner returns (string memory name, address candidateAddress, uint totalVotes) {
-        require(admin.votingEnd() < block.timestamp);
+        require(admin.votingEnd() < block.timestamp, "Winner is declared after voting period ended!");
         (string memory winnerName, address winnerAddress, uint winnerVotes) = admin.findBestCandidate();
         emit WinnerDeclared(winnerName, winnerAddress, winnerVotes);
         return(winnerName, winnerAddress, winnerVotes);
+    }
+
+    function checkFeeForPaidVotes() external view returns (uint fee){
+        return payment.votingFee();
+    }
+    function checkVotesPerVoter() public view returns (uint votedTimes){
+        return (voters[msg.sender].votes);
     }
 }
